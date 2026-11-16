@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+  <title>Click the Circle – Reaction Game</title>
+  <style>
+    :root {
+      --bg: #0f0f13;
+      --panel: #1a1a22;
+      --border: #2a2a35;
+      --text: #e8e8ec;
+      --muted: #9a9aab;
+      --accent: #7dffb3;
+      --accent-dim: #4db87a;
+      --danger: #ff6b6b;
+      --warning: #ffdb7d;
+      --info: #7db3ff;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ===== HUD ===== */
+    #hud {
+      padding: 10px 16px;
+      background: var(--panel);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
+      border-bottom: 1px solid var(--border);
+      z-index: 10;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .hud-group {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .hud-item strong {
+      font-weight: 600;
+    }
+
+    #score-val { color: var(--accent); }
+    #avg-val   { color: var(--info); }
+    #best-val  { color: var(--warning); }
+    #time-val  { color: var(--danger); }
+
+    .icon-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .icon-btn:hover {
+      background: #252530;
+      border-color: #3a3a48;
+    }
+
+    /* ===== GAME AREA ===== */
+    #game-area {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      cursor: crosshair;
+      background: radial-gradient(ellipse at center, #14141c 0%, #0f0f13 70%);
+    }
+
+    #circle {
+      position: absolute;
+      border-radius: 50%;
+      cursor: pointer;
+      display: none;
+      transition: transform 0.06s ease-out;
+      will-change: transform, left, top;
+      box-shadow: 0 0 18px rgba(0,0,0,0.4);
+    }
+    #circle:active {
+      transform: scale(0.88);
+    }
+
+    /* Reaction time popup */
+    .pop {
+      position: absolute;
+      pointer-events: none;
+      font-weight: 700;
+      font-size: 18px;
+      animation: popUp 0.7s ease-out forwards;
+      z-index: 5;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.6);
+    }
+    @keyframes popUp {
+      0%   { opacity: 1; transform: translateY(0) scale(1); }
+      70%  { opacity: 1; transform: translateY(-40px) scale(1.15); }
+      100% { opacity: 0; transform: translateY(-70px) scale(0.9); }
+    }
+
+    /* ===== OVERLAY / MENUS ===== */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(10, 10, 14, 0.94);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 30;
+      text-align: center;
+      padding: 24px;
+      backdrop-filter: blur(6px);
+    }
+    .overlay.hidden { display: none; }
+
+    h1 {
+      font-size: clamp(1.8rem, 5vw, 2.6rem);
+      margin-bottom: 8px;
+      letter-spacing: -0.5px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      max-width: 360px;
+      line-height: 1.5;
+      margin-bottom: 28px;
+      font-size: 15px;
+    }
+
+    .btn {
+      background: var(--accent);
+      color: #0a0a0e;
+      border: none;
+      padding: 13px 36px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      border-radius: 50px;
+      cursor: pointer;
+      transition: transform 0.15s, background 0.15s, box-shadow 0.15s;
+      box-shadow: 0 4px 18px rgba(125, 255, 179, 0.25);
+    }
+    .btn:hover {
+      background: #a0ffc8;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 22px rgba(125, 255, 179, 0.35);
+    }
+    .btn:active { transform: translateY(0); }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+      box-shadow: none;
+      margin-top: 12px;
+    }
+    .btn-secondary:hover {
+      background: #1e1e28;
+      border-color: #3a3a48;
+      box-shadow: none;
+    }
+
+    #final-stats {
+      margin: 18px 0 8px;
+      font-size: 1.15rem;
+      line-height: 1.6;
+    }
+    #final-stats strong { color: var(--accent); }
+
+    /* ===== SETTINGS PANEL ===== */
+    #settings-panel {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: min(340px, 100%);
+      height: 100%;
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      z-index: 40;
+      padding: 20px;
+      overflow-y: auto;
+      transform: translateX(100%);
+      transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    #settings-panel.open {
+      transform: translateX(0);
+    }
+
+    .settings-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .settings-header h2 {
+      font-size: 1.25rem;
+    }
+
+    .setting-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .setting-group label {
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .setting-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      padding: 8px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: #15151c;
+      color: var(--text);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .chip:hover { border-color: #4a4a5a; }
+    .chip.active {
+      background: var(--accent);
+      color: #0a0a0e;
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+
+    input[type="color"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 48px;
+      height: 36px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      background: none;
+    }
+    input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+    input[type="color"]::-webkit-color-swatch {
+      border: 2px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    input[type="range"] {
+      flex: 1;
+      accent-color: var(--accent);
+    }
+    .slider-val {
+      min-width: 40px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .toggle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .toggle {
+      width: 48px;
+      height: 28px;
+      background: #2a2a35;
+      border-radius: 14px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .toggle.on { background: var(--accent-dim); }
+    .toggle::after {
+      content: '';
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      background: white;
+      border-radius: 50%;
+      top: 3px;
+      left: 3px;
+      transition: transform 0.2s;
+    }
+    .toggle.on::after { transform: translateX(20px); }
+
+    /* Mobile adjustments */
+    @media (max-width: 480px) {
+      #hud { font-size: 13px; padding: 8px 12px; }
+      .hud-item { margin-right: 0; }
+      .pop { font-size: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-group">
+      <div class="hud-item">Score <strong id="score-val">0</strong></div>
+      <div class="hud-item">Hits <strong id="hits-val">0</strong></div>
+      <div class="hud-item">Avg <strong id="avg-val">–</strong>ms</div>
+      <div class="hud-item">Best <strong id="best-val">–</strong>ms</div>
+    </div>
+    <div class="hud-group">
+      <div class="hud-item" id="timer-display">Time <strong id="time-val">30</strong>s</div>
+      <button class="icon-btn" id="settings-btn" title="Settings">⚙</button>
+    </div>
+  </div>
+
+  <!-- GAME AREA -->
+  <div id="game-area">
+    <div id="circle"></div>
+
+    <!-- Start / End overlay -->
+    <div id="start-overlay" class="overlay">
+      <h1>Click the Circle</h1>
+      <p class="subtitle">
+        Click the circle as fast as you can every time it moves.<br>
+        Faster reactions = higher score.
+      </p>
+      <button class="btn" id="start-btn">Start Game</button>
+      <button class="btn btn-secondary" id="open-settings-from-start">Settings</button>
+    </div>
+
+    <div id="end-overlay" class="overlay hidden">
+      <h1>Round Over</h1>
+      <div id="final-stats"></div>
+      <button class="btn" id="restart-btn">Play Again</button>
+      <button class="btn btn-secondary" id="open-settings-from-end">Settings</button>
+    </div>
+  </div>
+
+  <!-- SETTINGS PANEL -->
+  <div id="settings-panel">
+    <div class="settings-header">
+      <h2>Settings</h2>
+      <button class="icon-btn" id="close-settings">✕</button>
+    </div>
+
+    <div class="setting-group">
+      <label>Circle Size</label>
+      <div class="setting-row" id="size-options">
+        <button class="chip" data-size="50">Small</button>
+        <button class="chip active" data-size="70">Medium</button>
+        <button class="chip" data-size="95">Large</button>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <label>Circle Color</label>
+      <div class="setting-row">
+        <input type="color" id="color-picker" value="#e74c3c">
+        <button class="chip" data-color="#e74c3c">Red</button>
+        <button class="chip" data-color="#2ecc71">Green</button>
+        <button class="chip" data-color="#3498db">Blue</button>
+        <button class="chip" data-color="#f1c40f">Yellow</button>
+        <button class="chip" data-color="#9b59b6">Purple</button>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <label>Round Length</label>
+      <div class="setting-row" id="duration-options">
+        <button class="chip" data-duration="15">15s</button>
+        <button class="chip active" data-duration="30">30s</button>
+        <button class="chip" data-duration="60">60s</button>
+        <button class="chip" data-duration="0">Endless</button>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <label>Scoring Style</label>
+      <div class="setting-row" id="scoring-options">
+        <button class="chip active" data-scoring="balanced">Balanced</button>
+        <button class="chip" data-scoring="speed">Speed Focus</button>
+        <button class="chip" data-scoring="consistency">Consistency</button>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <div class="toggle-row">
+        <label>Show reaction time popup</label>
+        <div class="toggle on" id="toggle-popup"></div>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <div class="toggle-row">
+        <label>Sound effects</label>
+        <div class="toggle on" id="toggle-sound"></div>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <label>Circle opacity</label>
+      <div class="slider-row">
+        <input type="range" id="opacity-slider" min="60" max="100" value="100">
+        <span class="slider-val" id="opacity-val">100%</span>
+      </div>
+    </div>
+
+    <p style="font-size:12px; color:var(--muted); margin-top:8px; line-height:1.4;">
+      Settings apply on the next round. Changes to color/size take effect immediately when not in a round.
+    </p>
+  </div>
+
+  <script>
+    // ===== STATE & DEFAULTS =====
+    const defaults = {
+      size: 70,
+      color: '#e74c3c',
+      duration: 30,        // 0 = endless
+      scoring: 'balanced',
+      showPopup: true,
+      sound: true,
+      opacity: 100
+    };
+
+    let settings = { ...defaults };
+    let score = 0;
+    let hits = 0;
+    let totalReaction = 0;
+    let bestTime = Infinity;
+    let lastAppear = 0;
+    let isPlaying = false;
+    let timeLeft = 30;
+    let timerInterval = null;
+    let endTimeout = null;
+
+    // DOM
+    const circle = document.getElementById('circle');
+    const gameArea = document.getElementById('game-area');
+    const startOverlay = document.getElementById('start-overlay');
+    const endOverlay = document.getElementById('end-overlay');
+    const settingsPanel = document.getElementById('settings-panel');
+    const scoreVal = document.getElementById('score-val');
+    const hitsVal = document.getElementById('hits-val');
+    const avgVal = document.getElementById('avg-val');
+    const bestVal = document.getElementById('best-val');
+    const timeVal = document.getElementById('time-val');
+    const timerDisplay = document.getElementById('timer-display');
+    const finalStats = document.getElementById('final-stats');
+
+    // ===== AUDIO (simple Web Audio beeps) =====
+    let audioCtx = null;
+    function playPop(freq = 880, duration = 0.06) {
+      if (!settings.sound) return;
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.frequency.value = freq;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {}
+    }
+
+    // ===== CIRCLE HELPERS =====
+    function applyCircleStyle() {
+      circle.style.width = settings.size + 'px';
+      circle.style.height = settings.size + 'px';
+      circle.style.background = `radial-gradient(circle at 32% 30%, ${lighten(settings.color, 35)}, ${settings.color})`;
+      circle.style.boxShadow = `0 0 22px ${settings.color}88, 0 0 40px ${settings.color}44`;
+      circle.style.opacity = settings.opacity / 100;
+    }
+
+    function lighten(hex, percent) {
+      const num = parseInt(hex.replace('#', ''), 16);
+      const r = Math.min(255, (num >> 16) + percent);
+      const g = Math.min(255, ((num >> 8) & 0x00FF) + percent);
+      const b = Math.min(255, (num & 0x0000FF) + percent);
+      return `#${(r << 16 | g << 8 | b).toString(16).padStart(6, '0')}`;
+    }
+
+    function randomPos() {
+      const pad = 8;
+      const maxX = gameArea.clientWidth - settings.size - pad;
+      const maxY = gameArea.clientHeight - settings.size - pad;
+      return {
+        x: Math.floor(Math.random() * Math.max(0, maxX)) + pad / 2,
+        y: Math.floor(Math.random() * Math.max(0, maxY)) + pad / 2
+      };
+    }
+
+    function placeCircle() {
+      const { x, y } = randomPos();
+      circle.style.left = x + 'px';
+      circle.style.top = y + 'px';
+      circle.style.display = 'block';
+      lastAppear = performance.now();
+    }
+
+    // ===== SCORING =====
+    function calcPoints(reactionMs) {
+      // Different formulas based on user preference
+      if (settings.scoring === 'speed') {
+        // Heavily rewards very fast reactions
+        return Math.max(5, Math.round(1200 * Math.exp(-reactionMs / 220)));
+      }
+      if (settings.scoring === 'consistency') {
+        // Flatter curve – more points for solid mid-range times
+        if (reactionMs < 180) return 100;
+        if (reactionMs < 250) return 80;
+        if (reactionMs < 320) return 60;
+        if (reactionMs < 400) return 40;
+        if (reactionMs < 500) return 25;
+        return 10;
+      }
+      // Balanced (default)
+      return Math.max(8, Math.round(950 * Math.exp(-reactionMs / 280)));
+    }
+
+    // ===== POPUP =====
+    function showPop(x, y, text, color) {
+      if (!settings.showPopup) return;
+      const el = document.createElement('div');
+      el.className = 'pop';
+      el.textContent = text;
+      el.style.left = (x + settings.size / 2 - 20) + 'px';
+      el.style.top = (y - 10) + 'px';
+      el.style.color = color;
+      gameArea.appendChild(el);
+      setTimeout(() => el.remove(), 700);
+    }
+
+    // ===== HUD =====
+    function updateHUD() {
+      scoreVal.textContent = score;
+      hitsVal.textContent = hits;
+      avgVal.textContent = hits > 0 ? Math.round(totalReaction / hits) : '–';
+      bestVal.textContent = bestTime === Infinity ? '–' : Math.round(bestTime);
+    }
+
+    // ===== GAME FLOW =====
+    function startGame() {
+      // Reset
+      score = 0;
+      hits = 0;
+      totalReaction = 0;
+      bestTime = Infinity;
+      isPlaying = true;
+      timeLeft = settings.duration || 9999;
+
+      updateHUD();
+      applyCircleStyle();
+
+      startOverlay.classList.add('hidden');
+      endOverlay.classList.add('hidden');
+      settingsPanel.classList.remove('open');
+
+      // Timer
+      if (settings.duration > 0) {
+        timerDisplay.style.display = 'block';
+        timeVal.textContent = timeLeft;
+        clearInterval(timerInterval);
+        timerInterval = setInterval(() => {
+          timeLeft--;
+          timeVal.textContent = timeLeft;
+          if (timeLeft <= 0) endGame();
+        }, 1000);
+      } else {
+        timerDisplay.style.display = 'none';
+      }
+
+      placeCircle();
+    }
+
+    function endGame() {
+      isPlaying = false;
+      circle.style.display = 'none';
+      clearInterval(timerInterval);
+      clearTimeout(endTimeout);
+
+      const avg = hits > 0 ? Math.round(totalReaction / hits) : 0;
+      finalStats.innerHTML = `
+        <div>Score: <strong>${score}</strong></div>
+        <div>Hits: <strong>${hits}</strong></div>
+        <div>Average: <strong>${avg} ms</strong></div>
+        <div>Best: <strong>${bestTime === Infinity ? '–' : Math.round(bestTime) + ' ms'}</strong></div>
+      `;
+      endOverlay.classList.remove('hidden');
+    }
+
+    // ===== CLICK HANDLER =====
+    function onCircleClick(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!isPlaying) return;
+
+      const now = performance.now();
+      const reaction = now - lastAppear;
+      const points = calcPoints(reaction);
+
+      score += points;
+      hits++;
+      totalReaction += reaction;
+      if (reaction < bestTime) bestTime = reaction;
+
+      // Visual + audio feedback
+      const rect = circle.getBoundingClientRect();
+      const areaRect = gameArea.getBoundingClientRect();
+      const relX = rect.left - areaRect.left;
+      const relY = rect.top - areaRect.top;
+
+      // Color the popup based on quality
+      let popColor = '#7dffb3'; // good
+      if (reaction > 350) popColor = '#ff6b6b';
+      else if (reaction > 250) popColor = '#ffdb7d';
+
+      showPop(relX, relY, `+${points}  ${Math.round(reaction)}ms`, popColor);
+      playPop(reaction < 200 ? 980 : reaction < 300 ? 740 : 520);
+
+      updateHUD();
+      placeCircle(); // move immediately
+    }
+
+    // ===== SETTINGS UI =====
+    function openSettings() {
+      settingsPanel.classList.add('open');
+    }
+    function closeSettings() {
+      settingsPanel.classList.remove('open');
+    }
+
+    // Size chips
+    document.querySelectorAll('#size-options .chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('#size-options .chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        settings.size = parseInt(chip.dataset.size);
+        applyCircleStyle();
+        if (isPlaying) placeCircle(); // re-place so it stays fully visible
+      });
+    });
+
+    // Color
+    document.getElementById('color-picker').addEventListener('input', e => {
+      settings.color = e.target.value;
+      applyCircleStyle();
+    });
+    document.querySelectorAll('[data-color]').forEach(chip => {
+      chip.addEventListener('click', () => {
+        settings.color = chip.dataset.color;
+        document.getElementById('color-picker').value = settings.color;
+        applyCircleStyle();
+      });
+    });
+
+    // Duration
+    document.querySelectorAll('#duration-options .chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('#duration-options .chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        settings.duration = parseInt(chip.dataset.duration);
+      });
+    });
+
+    // Scoring style
+    document.querySelectorAll('#scoring-options .chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('#scoring-options .chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        settings.scoring = chip.dataset.scoring;
+      });
+    });
+
+    // Toggles
+    document.getElementById('toggle-popup').addEventListener('click', function () {
+      this.classList.toggle('on');
+      settings.showPopup = this.classList.contains('on');
+    });
+    document.getElementById('toggle-sound').addEventListener('click', function () {
+      this.classList.toggle('on');
+      settings.sound = this.classList.contains('on');
+    });
+
+    // Opacity
+    const opacitySlider = document.getElementById('opacity-slider');
+    const opacityVal = document.getElementById('opacity-val');
+    opacitySlider.addEventListener('input', () => {
+      settings.opacity = parseInt(opacitySlider.value);
+      opacityVal.textContent = settings.opacity + '%';
+      applyCircleStyle();
+    });
+
+    // Buttons
+    document.getElementById('settings-btn').addEventListener('click', openSettings);
+    document.getElementById('close-settings').addEventListener('click', closeSettings);
+    document.getElementById('open-settings-from-start').addEventListener('click', openSettings);
+    document.getElementById('open-settings-from-end').addEventListener('click', openSettings);
+
+    document.getElementById('start-btn').addEventListener('click', startGame);
+    document.getElementById('restart-btn').addEventListener('click', startGame);
+
+    // Circle click (pointer events work for mouse + touch)
+    circle.addEventListener('pointerdown', onCircleClick);
+
+    // Prevent scrolling on mobile while playing
+    document.addEventListener('touchmove', e => {
+      if (isPlaying) e.preventDefault();
+    }, { passive: false });
+
+    // Init
+    applyCircleStyle();
+  </script>
+</body>
+</html>
